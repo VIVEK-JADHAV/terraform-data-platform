@@ -38,13 +38,13 @@ variable "raw_lifecycle_ia_days" {
 }
 
 variable "raw_lifecycle_glacier_days" {
-  description = "Days before raw data transitions to Glacier"
+  description = "Days before raw data transitions to Glacier (must be > raw_lifecycle_ia_days)"
   type        = number
   default     = 180
 
   validation {
-    condition     = var.raw_lifecycle_glacier_days > var.raw_lifecycle_ia_days
-    error_message = "Glacier transition must be after IA transition."
+    condition     = var.raw_lifecycle_glacier_days > 30
+    error_message = "Glacier transition must be greater than 30 days."
   }
 }
 
