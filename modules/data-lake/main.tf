@@ -1,12 +1,9 @@
-data "aws_caller_identity" "current" {}
-
 locals {
-  account_id    = data.aws_caller_identity.current.account_id
-  bucket_prefix = "${var.project_name}-${var.environment}-${local.account_id}"
+  bucket_prefix = "${var.project_name}-${var.environment}-${var.account_id}"
 }
 
 resource "aws_kms_key" "data_lake" {
-  description             = "KMS key for ShopStream data lake encryption"
+  description             = "KMS key for ${var.project_name} data lake encryption"
   deletion_window_in_days = 7
   enable_key_rotation     = true
 
@@ -20,9 +17,7 @@ resource "aws_kms_alias" "data_lake" {
   target_key_id = aws_kms_key.data_lake.key_id
 }
 
-# -----------------------------------------------------
-# LOGS BUCKET — captures access logs from all data zones
-# -----------------------------------------------------
+# --- LOGS BUCKET ---
 
 resource "aws_s3_bucket" "logs" {
   bucket = "${local.bucket_prefix}-logs"
@@ -55,14 +50,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
     status = "Enabled"
 
     expiration {
-      days = 30
+      days = var.logs_expiration_days
     }
   }
 }
 
-# -----------------------------------------------------
-# RAW ZONE — immutable landing zone, data as-received
-# -----------------------------------------------------
+# --- RAW ZONE ---
 
 resource "aws_s3_bucket" "raw" {
   bucket = "${local.bucket_prefix}-raw"
@@ -105,12 +98,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "raw" {
     status = "Enabled"
 
     transition {
-      days          = 60
+      days          = var.raw_lifecycle_ia_days
       storage_class = "STANDARD_IA"
     }
 
     transition {
-      days          = 180
+      days          = var.raw_lifecycle_glacier_days
       storage_class = "GLACIER"
     }
   }
@@ -123,9 +116,7 @@ resource "aws_s3_bucket_logging" "raw" {
   target_prefix = "raw/"
 }
 
-# -----------------------------------------------------
-# STAGING ZONE — cleaned/transformed intermediate data
-# -----------------------------------------------------
+# --- STAGING ZONE ---
 
 resource "aws_s3_bucket" "staging" {
   bucket = "${local.bucket_prefix}-staging"
@@ -160,7 +151,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "staging" {
     status = "Enabled"
 
     expiration {
-      days = 90
+      days = var.staging_expiration_days
     }
   }
 }
@@ -172,9 +163,7 @@ resource "aws_s3_bucket_logging" "staging" {
   target_prefix = "staging/"
 }
 
-# -----------------------------------------------------
-# CURATED ZONE — business-ready data served to consumers
-# -----------------------------------------------------
+# --- CURATED ZONE ---
 
 resource "aws_s3_bucket" "curated" {
   bucket = "${local.bucket_prefix}-curated"
@@ -224,7 +213,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "curated" {
     status = "Enabled"
 
     noncurrent_version_expiration {
-      noncurrent_days = 30
+      noncurrent_days = var.curated_noncurrent_expiration_days
     }
   }
 }

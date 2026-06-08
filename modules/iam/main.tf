@@ -1,6 +1,4 @@
-# -----------------------------------------------------
-# LAMBDA ROLE — used by clickstream producer, chunker, embedder
-# -----------------------------------------------------
+# --- LAMBDA ROLE ---
 
 resource "aws_iam_role" "lambda" {
   name = "${var.project_name}-${var.environment}-lambda-role"
@@ -35,8 +33,8 @@ resource "aws_iam_policy" "lambda_s3" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.raw.arn,
-          "${aws_s3_bucket.raw.arn}/*"
+          var.raw_bucket_arn,
+          "${var.raw_bucket_arn}/*"
         ]
       },
       {
@@ -48,8 +46,8 @@ resource "aws_iam_policy" "lambda_s3" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.staging.arn,
-          "${aws_s3_bucket.staging.arn}/*"
+          var.staging_bucket_arn,
+          "${var.staging_bucket_arn}/*"
         ]
       },
       {
@@ -59,9 +57,7 @@ resource "aws_iam_policy" "lambda_s3" {
           "kms:Decrypt",
           "kms:GenerateDataKey"
         ]
-        Resource = [
-          aws_kms_key.data_lake.arn
-        ]
+        Resource = [var.kms_key_arn]
       }
     ]
   })
@@ -77,9 +73,7 @@ resource "aws_iam_policy" "lambda_bedrock" {
       {
         Sid    = "InvokeBedrock"
         Effect = "Allow"
-        Action = [
-          "bedrock:InvokeModel"
-        ]
+        Action = ["bedrock:InvokeModel"]
         Resource = [
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-v2*"
         ]
@@ -103,7 +97,7 @@ resource "aws_iam_policy" "lambda_logs" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:${var.aws_region}:${local.account_id}:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${var.account_id}:*"
       }
     ]
   })
@@ -124,9 +118,7 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
   policy_arn = aws_iam_policy.lambda_logs.arn
 }
 
-# -----------------------------------------------------
-# EMR ROLE — used by Spark Streaming and Spark Batch jobs
-# -----------------------------------------------------
+# --- EMR ROLE ---
 
 resource "aws_iam_role" "emr" {
   name = "${var.project_name}-${var.environment}-emr-role"
@@ -160,10 +152,10 @@ resource "aws_iam_policy" "emr_data_access" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.raw.arn,
-          "${aws_s3_bucket.raw.arn}/*",
-          aws_s3_bucket.staging.arn,
-          "${aws_s3_bucket.staging.arn}/*"
+          var.raw_bucket_arn,
+          "${var.raw_bucket_arn}/*",
+          var.staging_bucket_arn,
+          "${var.staging_bucket_arn}/*"
         ]
       },
       {
@@ -176,10 +168,10 @@ resource "aws_iam_policy" "emr_data_access" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.staging.arn,
-          "${aws_s3_bucket.staging.arn}/*",
-          aws_s3_bucket.curated.arn,
-          "${aws_s3_bucket.curated.arn}/*"
+          var.staging_bucket_arn,
+          "${var.staging_bucket_arn}/*",
+          var.curated_bucket_arn,
+          "${var.curated_bucket_arn}/*"
         ]
       },
       {
@@ -189,9 +181,7 @@ resource "aws_iam_policy" "emr_data_access" {
           "kms:Decrypt",
           "kms:GenerateDataKey"
         ]
-        Resource = [
-          aws_kms_key.data_lake.arn
-        ]
+        Resource = [var.kms_key_arn]
       },
       {
         Sid    = "AccessGlueCatalog"
@@ -208,9 +198,9 @@ resource "aws_iam_policy" "emr_data_access" {
           "glue:BatchCreatePartition"
         ]
         Resource = [
-          "arn:aws:glue:${var.aws_region}:${local.account_id}:catalog",
-          "arn:aws:glue:${var.aws_region}:${local.account_id}:database/${var.project_name}_*",
-          "arn:aws:glue:${var.aws_region}:${local.account_id}:table/${var.project_name}_*/*"
+          "arn:aws:glue:${var.aws_region}:${var.account_id}:catalog",
+          "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.project_name}_*",
+          "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.project_name}_*/*"
         ]
       }
     ]
@@ -232,7 +222,7 @@ resource "aws_iam_policy" "emr_logs" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:${var.aws_region}:${local.account_id}:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${var.account_id}:*"
       }
     ]
   })
@@ -248,9 +238,7 @@ resource "aws_iam_role_policy_attachment" "emr_logs" {
   policy_arn = aws_iam_policy.emr_logs.arn
 }
 
-# -----------------------------------------------------
-# ECS ROLE — used by Kafka consumers on Fargate
-# -----------------------------------------------------
+# --- ECS ROLE ---
 
 resource "aws_iam_role" "ecs_task" {
   name = "${var.project_name}-${var.environment}-ecs-task-role"
@@ -289,9 +277,9 @@ resource "aws_iam_policy" "ecs_msk" {
           "kafka-cluster:AlterGroup"
         ]
         Resource = [
-          "arn:aws:kafka:${var.aws_region}:${local.account_id}:cluster/${var.project_name}-*/*",
-          "arn:aws:kafka:${var.aws_region}:${local.account_id}:topic/${var.project_name}-*/*",
-          "arn:aws:kafka:${var.aws_region}:${local.account_id}:group/${var.project_name}-*/*"
+          "arn:aws:kafka:${var.aws_region}:${var.account_id}:cluster/${var.project_name}-*/*",
+          "arn:aws:kafka:${var.aws_region}:${var.account_id}:topic/${var.project_name}-*/*",
+          "arn:aws:kafka:${var.aws_region}:${var.account_id}:group/${var.project_name}-*/*"
         ]
       },
       {
@@ -302,8 +290,8 @@ resource "aws_iam_policy" "ecs_msk" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.staging.arn,
-          "${aws_s3_bucket.staging.arn}/*"
+          var.staging_bucket_arn,
+          "${var.staging_bucket_arn}/*"
         ]
       },
       {
@@ -313,9 +301,7 @@ resource "aws_iam_policy" "ecs_msk" {
           "kms:Decrypt",
           "kms:GenerateDataKey"
         ]
-        Resource = [
-          aws_kms_key.data_lake.arn
-        ]
+        Resource = [var.kms_key_arn]
       }
     ]
   })
@@ -336,7 +322,7 @@ resource "aws_iam_policy" "ecs_logs" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:${var.aws_region}:${local.account_id}:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${var.account_id}:*"
       }
     ]
   })
